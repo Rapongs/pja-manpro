@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectWorkspaceController;
 use App\Http\Controllers\PhotoReportController;
+use App\Http\Controllers\ProcurementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +27,7 @@ Route::middleware('auth')->group(function () {
 	Route::get('/projects/{project}/materials', [ProjectWorkspaceController::class, 'materials'])->name('projects.materials');
 	Route::get('/projects/{project}/cash-flows', [ProjectWorkspaceController::class, 'cashFlows'])->name('projects.cash-flows');
 	Route::get('/projects/{project}/photos', [PhotoReportController::class, 'index'])->name('projects.photos');
+	Route::get('/procurements', [ProcurementController::class, 'index'])->name('procurements.index');
 	Route::middleware('manage.projects')->group(function () {
 	Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
 	Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
@@ -49,6 +51,7 @@ Route::middleware('auth')->group(function () {
 	Route::post('/projects/{project}/photos', [PhotoReportController::class, 'store'])->name('projects.photos.store');
 	Route::put('/projects/{project}/photos/{photoReport}', [PhotoReportController::class, 'update'])->name('projects.photos.update');
 	Route::delete('/projects/{project}/photos/{photoReport}', [PhotoReportController::class, 'destroy'])->name('projects.photos.destroy');
+	Route::post('/procurements', [ProcurementController::class, 'store'])->name('procurements.store');
 	});
 	Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });

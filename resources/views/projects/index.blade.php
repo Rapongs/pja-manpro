@@ -15,16 +15,16 @@
     <h2 class="mb-5 text-lg font-semibold">Tambah proyek</h2>
     <form method="POST" action="{{ route('projects.store') }}" class="grid gap-4 md:grid-cols-2">
         @csrf
-        <input name="name" required placeholder="Nama proyek" class="w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('name') }}">
-        <input name="location" placeholder="Lokasi" class="w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('location') }}">
-        <input type="date" name="start_date" class="w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('start_date') }}">
-        <input type="date" name="end_date" class="w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('end_date') }}">
-        <input type="number" min="0" step="0.01" name="budget" placeholder="Anggaran" class="w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('budget') }}">
-        <select name="status" class="w-full border border-slate-300 px-3 py-2 text-sm">
+        <label class="text-sm font-medium">Nama proyek<input name="name" required placeholder="Nama proyek" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('name') }}"></label>
+        <label class="text-sm font-medium">Lokasi<input name="location" placeholder="Lokasi" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('location') }}"></label>
+        <label class="text-sm font-medium">Tanggal mulai<input type="date" name="start_date" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('start_date') }}"></label>
+        <label class="text-sm font-medium">Tanggal selesai<input type="date" name="end_date" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('end_date') }}"></label>
+        <label class="text-sm font-medium">Anggaran<input type="number" min="0" step="0.01" name="budget" placeholder="Anggaran" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm" value="{{ old('budget') }}"></label>
+        <label class="text-sm font-medium">Status<select name="status" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm">
             @foreach (['planning' => 'Perencanaan', 'active' => 'Berjalan', 'completed' => 'Selesai', 'on_hold' => 'Ditunda'] as $value => $label)
                 <option value="{{ $value }}" @selected(old('status', 'planning') === $value)>{{ $label }}</option>
             @endforeach
-        </select>
+        </select></label>
         <button class="bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 md:col-span-2">Simpan proyek</button>
     </form>
 </section>
@@ -34,8 +34,8 @@
 <section>
 @endif
         <form method="GET" action="{{ route('projects.index') }}" class="mb-5 flex flex-col gap-3 sm:flex-row">
-            <input name="search" value="{{ request('search') }}" placeholder="Cari nama atau lokasi proyek" class="min-w-0 flex-1 border-slate-300 px-3 py-2 text-sm">
-            <select name="sort" onchange="this.form.submit()" class="border-slate-300 px-3 py-2 text-sm">
+            <input name="search" data-hide-field-label value="{{ request('search') }}" placeholder="Cari nama atau lokasi proyek" class="min-w-0 flex-1 border-slate-300 px-3 py-2 text-sm">
+            <select name="sort" data-hide-field-label onchange="this.form.submit()" class="border-slate-300 px-3 py-2 text-sm">
                 <option value="created_at" @selected($sort === 'created_at')>Terbaru</option>
                 <option value="name" @selected($sort === 'name')>Nama</option>
                 <option value="start_date" @selected($sort === 'start_date')>Tanggal mulai</option>

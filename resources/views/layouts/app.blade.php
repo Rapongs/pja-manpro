@@ -12,6 +12,7 @@
     <style>
         html { overscroll-behavior-y: none; }
         body { overflow-x: hidden; font-family: 'Roboto', sans-serif; }
+        .form-field-label { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 600; color: #475569; }
         .read-only main form[method="POST"], .read-only main details { display: none; }
             .read-only main section:has(> form[action*="/progress/planned"]),
             .read-only main section:has(> form[action$="/progress"]),
@@ -31,6 +32,9 @@
                 <!-- <span class="text-lg font-bold tracking-tight">PJ Ambaraloka</span> -->
             </a>
             <div class="flex items-center gap-4 text-sm text-slate-500">
+                @auth
+                    <a href="{{ route('procurements.index') }}" class="font-semibold text-orange-600 hover:text-orange-700">Pengadaan</a>
+                @endauth
                 <span>{{ auth()->user()->name ?? 'Tamu' }}</span>
                 @auth
                     <form method="POST" action="{{ route('logout') }}">@csrf<button class="font-semibold text-orange-600 hover:text-orange-700">Keluar</button></form>
@@ -51,5 +55,96 @@
         @endif
         @yield('content')
     </main>
+    <div id="edit-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+        <div class="max-h-full w-full max-w-lg overflow-y-auto border border-slate-200 bg-white p-6 shadow-xl" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between gap-4"><h2 id="edit-modal-title" class="text-lg font-semibold">Edit</h2><button type="button" class="text-2xl text-slate-500 hover:text-slate-900" onclick="closeEditModal()" aria-label="Tutup">&times;</button></div>
+            <div id="edit-modal-content" class="mt-5"></div>
+        </div>
+    </div>
+    <script>
+        const editModal = document.getElementById('edit-modal');
+        const editModalTitle = document.getElementById('edit-modal-title');
+        const editModalContent = document.getElementById('edit-modal-content');
+
+        if (document.body.classList.contains('read-only')) {
+            document.querySelectorAll('main details').forEach((detail) => {
+                if (detail.querySelector(':scope > summary')?.textContent.toLowerCase().includes('edit')) detail.remove();
+            });
+        }
+
+        document.querySelectorAll('main details').forEach((detail) => {
+            const summary = detail.querySelector(':scope > summary');
+            if (document.body.classList.contains('read-only') || !summary || !summary.textContent.toLowerCase().includes('edit')) return;
+            const editElements = Array.from(detail.children).filter((child) => child !== summary);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'inline-flex items-center bg-white px-3 py-2 text-sm font-semibold text-orange-600 hover:bg-orange-50';
+            button.textContent = summary.textContent.trim();
+            button.addEventListener('click', () => openEditModal(button.textContent, editElements));
+            detail.replaceWith(button);
+        });
+
+        document.querySelectorAll('main a[href$="/edit"]').forEach((link) => {
+            if (document.body.classList.contains('read-only')) return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = link.className;
+            button.textContent = link.textContent.trim();
+            button.addEventListener('click', async () => {
+                editModalTitle.textContent = 'Edit proyek';
+                editModalContent.innerHTML = '<p class="text-sm text-slate-500">Memuat form...</p>';
+                showEditModal();
+                const response = await fetch(link.href);
+                const html = await response.text();
+                const form = new DOMParser().parseFromString(html, 'text/html').querySelector('main form[method="POST"]');
+                editModalContent.replaceChildren(form || document.createTextNode('Form edit tidak tersedia.'));
+                addMissingFieldLabels(editModalContent);
+            });
+            link.replaceWith(button);
+        });
+
+        function openEditModal(title, elements) {
+            editModalTitle.textContent = title;
+            elements.forEach((element) => addMissingFieldLabels(element));
+            editModalContent.replaceChildren(...elements);
+            showEditModal();
+        }
+
+        function showEditModal() {
+            editModal.classList.remove('hidden');
+            editModal.classList.add('flex');
+        }
+
+        function closeEditModal() {
+            editModal.classList.add('hidden');
+            editModal.classList.remove('flex');
+        }
+
+        editModal.addEventListener('click', closeEditModal);
+
+        const fieldLabels = {
+            name: 'Nama', location: 'Lokasi', start_date: 'Tanggal mulai', end_date: 'Tanggal selesai', budget: 'Anggaran', status: 'Status',
+            search: 'Pencarian', material_search: 'Cari material', month: 'Bulan', date: 'Tanggal', description: 'Keperluan', detailed_description: 'Deskripsi lengkap',
+            result: 'Hasil pekerjaan', material_name: 'Nama material', brand: 'Merk', unit: 'Satuan', current_stock: 'Stok awal', in_qty: 'Jumlah masuk', out_qty: 'Jumlah keluar',
+            progress_pct: 'Progress (%)', week_start: 'Minggu mulai', planned_progress_pct: 'Target (%)', supplier_name: 'Nama supplier', phone: 'Nomor telepon',
+            address: 'Alamat supplier', project_id: 'Project', quantity: 'Kuantitas', price: 'Harga satuan', email: 'Email', password: 'Password'
+        };
+
+        function addMissingFieldLabels(root = document) {
+            root.querySelectorAll('input, select, textarea').forEach((field) => {
+                if (field.type === 'hidden' || field.hasAttribute('data-hide-field-label') || !field.name || field.closest('label') || field.previousElementSibling?.classList.contains('form-field-label')) return;
+                const name = field.name.replace(/^.*\[([^\]]+)\]$/, '$1');
+                const label = document.createElement('span');
+                label.className = 'form-field-label';
+                label.textContent = fieldLabels[name] || name.replaceAll('_', ' ');
+                field.parentNode.insertBefore(label, field);
+            });
+        }
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => addMissingFieldLabels());
+        else addMissingFieldLabels();
+        const procurementItems = document.getElementById('procurement-items');
+        if (procurementItems) new MutationObserver(() => addMissingFieldLabels(procurementItems)).observe(procurementItems, { childList: true, subtree: true });
+    </script>
 </body>
 </html>

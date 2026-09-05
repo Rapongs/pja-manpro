@@ -6,6 +6,9 @@ use App\Models\MasterMaterial;
 use App\Models\Lapjusik;
 use App\Models\Project;
 use App\Models\SCurvePlanned;
+use App\Models\CashFlow;
+use App\Models\Procurement;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -56,6 +59,26 @@ class WorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('60.00', false)
             ->assertSee('45.00', false);
+    }
+
+    public function test_procurement_reuses_supplier_and_updates_project_material_and_cash_flow(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::create(['name' => 'Proyek Pengadaan', 'status' => 'active']);
+
+        $payload = [
+            'supplier_name' => 'PT Material Jaya', 'phone' => '08123456789', 'address' => 'Jakarta',
+            'project_id' => $project->id, 'date' => '2026-09-05',
+            'items' => [['material_name' => 'Semen', 'brand' => 'Tiga Roda', 'unit' => 'zak', 'quantity' => 10, 'price' => 75000]],
+        ];
+        $this->actingAs($user)->post(route('procurements.store'), $payload)->assertRedirect();
+        $payload['items'][0]['quantity'] = 5;
+        $this->actingAs($user)->post(route('procurements.store'), $payload)->assertRedirect();
+
+        $this->assertSame(1, Supplier::where('name', 'PT Material Jaya')->count());
+        $this->assertSame(2, Procurement::where('supplier_id', Supplier::first()->id)->count());
+        $this->assertSame(15.0, (float) MasterMaterial::where('project_id', $project->id)->value('current_stock'));
+        $this->assertSame(1125000.0, (float) CashFlow::where('project_id', $project->id)->sum('kredit'));
     }
 
     public function test_material_and_cash_transactions_update_running_balances(): void

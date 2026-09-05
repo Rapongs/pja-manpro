@@ -39,4 +39,9 @@ class Project extends Model
     {
         return $this->hasMany(PhotoReport::class);
     }
+
+    public function procurements(): HasMany
+    {
+        return $this->hasMany(Procurement::class);
+    }
 }

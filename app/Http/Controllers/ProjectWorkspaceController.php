@@ -109,11 +109,11 @@ class ProjectWorkspaceController extends Controller
 
     public function storeMaterial(Request $request, Project $project): RedirectResponse
     {
-        $data = $request->validate(['material_name' => ['required', 'string', 'max:255'], 'unit' => ['required', 'string', 'max:30'], 'current_stock' => ['nullable', 'numeric']]);
+        $data = $request->validate(['material_name' => ['required', 'string', 'max:255'], 'brand' => ['nullable', 'string', 'max:100'], 'unit' => ['required', 'string', 'max:30'], 'current_stock' => ['nullable', 'numeric']]);
         $data['material_name'] = trim($data['material_name']);
         $existing = MasterMaterial::where('project_id', $project->id)->whereRaw('LOWER(material_name) = ?', [mb_strtolower($data['material_name'])])->first();
         if ($existing) return to_route('projects.materials', [$project, 'material_id' => $existing->id])->withErrors(['material_name' => "Material {$existing->material_name} sudah terdaftar. Tambahkan stok melalui Material Flow."]);
-        $material = MasterMaterial::create(['material_name' => $data['material_name'], 'unit' => $data['unit'], 'project_id' => $project->id, 'current_stock' => 0]);
+        $material = MasterMaterial::create(['material_name' => $data['material_name'], 'brand' => $data['brand'] ?? null, 'unit' => $data['unit'], 'project_id' => $project->id, 'current_stock' => 0]);
         if ((float) ($data['current_stock'] ?? 0) !== 0.0) MaterialFlow::create(['material_id' => $material->id, 'date' => now()->toDateString(), 'description' => 'Stok awal', 'in_qty' => max((float) $data['current_stock'], 0), 'out_qty' => max(-(float) $data['current_stock'], 0), 'balance_qty' => 0]);
         $this->recalculateMaterial($material);
         return back()->with('success', 'Material berhasil ditambahkan.');
@@ -122,7 +122,7 @@ class ProjectWorkspaceController extends Controller
     public function updateMaterial(Request $request, Project $project, MasterMaterial $material): RedirectResponse
     {
         abort_unless($material->project_id === $project->id, 404);
-        $data = $request->validate(['material_name' => ['required', 'string', 'max:255'], 'unit' => ['required', 'string', 'max:30']]);
+        $data = $request->validate(['material_name' => ['required', 'string', 'max:255'], 'brand' => ['nullable', 'string', 'max:100'], 'unit' => ['required', 'string', 'max:30']]);
         $material->update($data);
         return back()->with('success', 'Material berhasil diperbarui.');
     }
@@ -136,7 +136,7 @@ class ProjectWorkspaceController extends Controller
 
     public function storeMaterialFlow(Request $request, Project $project): RedirectResponse
     {
-        $data = $request->validate(['material_id' => ['required', 'exists:master_materials,id'], 'date' => ['required', 'date'], 'description' => ['required', 'string', 'max:255'], 'in_qty' => ['nullable', 'numeric'], 'out_qty' => ['nullable', 'numeric']]);
+        $data = $request->validate(['material_id' => ['required', 'exists:master_materials,id'], 'date' => ['required', 'date'], 'description' => ['required', 'string', 'max:255'], 'detailed_description' => ['nullable', 'string', 'max:2000'], 'result' => ['nullable', 'string', 'max:255'], 'in_qty' => ['nullable', 'numeric', 'min:0'], 'out_qty' => ['nullable', 'numeric', 'min:0']]);
         $material = MasterMaterial::where('project_id', $project->id)->findOrFail($data['material_id']);
         $this->saveFlow($material, $data);
         return to_route('projects.materials', [$project, 'material_id' => $material->id, 'month' => substr($data['date'], 0, 7)])->with('success', 'Material flow berhasil dicatat.');
@@ -145,7 +145,7 @@ class ProjectWorkspaceController extends Controller
     public function updateMaterialFlow(Request $request, Project $project, MaterialFlow $flow): RedirectResponse
     {
         $material = MasterMaterial::where('project_id', $project->id)->findOrFail($flow->material_id);
-        $data = $request->validate(['date' => ['required', 'date'], 'description' => ['required', 'string', 'max:255'], 'in_qty' => ['nullable', 'numeric'], 'out_qty' => ['nullable', 'numeric']]);
+        $data = $request->validate(['date' => ['required', 'date'], 'description' => ['required', 'string', 'max:255'], 'detailed_description' => ['nullable', 'string', 'max:2000'], 'result' => ['nullable', 'string', 'max:255'], 'in_qty' => ['nullable', 'numeric', 'min:0'], 'out_qty' => ['nullable', 'numeric', 'min:0']]);
         $flow->update([...$data, 'in_qty' => $data['in_qty'] ?? 0, 'out_qty' => $data['out_qty'] ?? 0]); $this->recalculateMaterial($material);
         return back()->with('success', 'Material flow berhasil diperbarui.');
     }

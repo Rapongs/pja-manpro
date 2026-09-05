@@ -52,10 +52,10 @@ class DatabaseSeeder extends Seeder
                 PhotoReport::create(['project_id' => $project->id, 'date' => $photo[1], 'description' => $photo[0], 'photo_path' => null]);
             }
 
-            foreach ([['Semen Portland', 'zak', 120], ['Besi beton 13 mm', 'batang', 260], ['Pasir beton', 'm3', 35], ['Batu split', 'm3', 48], ['Cat eksterior', 'pail', 22]] as $materialData) {
-                $material = MasterMaterial::create(['project_id' => $project->id, 'material_name' => $materialData[0], 'unit' => $materialData[1], 'current_stock' => 0]);
+            foreach ([['Semen Portland', 'Tiga Roda', 'zak', 120], ['Besi beton 13 mm', 'KS', 'batang', 260], ['Pasir beton', null, 'm3', 35], ['Batu split', null, 'm3', 48], ['Cat eksterior', 'Avian', 'pail', 22]] as $materialData) {
+                $material = MasterMaterial::create(['project_id' => $project->id, 'material_name' => $materialData[0], 'brand' => $materialData[1], 'unit' => $materialData[2], 'current_stock' => 0]);
                 $runningStock = 0;
-                foreach ([[40, 0, 'Penerimaan awal'], [0, 15, 'Pemakaian pekerjaan struktur'], [0, 8, 'Pemakaian pekerjaan arsitektur'], [$materialData[2], 0, 'Penerimaan tambahan'], [0, 4, 'Pemakaian pekerjaan finishing']] as $flowIndex => $flow) {
+                foreach ([[40, 0, 'Penerimaan awal'], [0, 15, 'Pemakaian pekerjaan struktur'], [0, 8, 'Pemakaian pekerjaan arsitektur'], [$materialData[3], 0, 'Penerimaan tambahan'], [0, 4, 'Pemakaian pekerjaan finishing']] as $flowIndex => $flow) {
                     $runningStock += $flow[0] - $flow[1];
                     MaterialFlow::create(['material_id' => $material->id, 'date' => now()->subDays(40 - ($flowIndex * 7)), 'description' => $flow[2], 'in_qty' => $flow[0], 'out_qty' => $flow[1], 'balance_qty' => $runningStock]);
                 }

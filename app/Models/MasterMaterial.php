@@ -18,4 +18,9 @@ class MasterMaterial extends Model
     {
         return $this->hasMany(MaterialFlow::class, 'material_id');
     }
+
+    public function procurementItems(): HasMany
+    {
+        return $this->hasMany(ProcurementItem::class, 'material_id');
+    }
 }
