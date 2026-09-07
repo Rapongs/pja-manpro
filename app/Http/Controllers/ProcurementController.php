@@ -27,12 +27,21 @@ class ProcurementController extends Controller
         return view('procurements.index', compact('projects', 'suppliers', 'supplier'));
     }
 
+    public function show(Supplier $supplier): View
+    {
+        $supplier->load(['procurements.project', 'procurements.items']);
+        $projects = Project::orderBy('name')->get();
+
+        return view('procurements.show', compact('supplier', 'projects'));
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'supplier_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:50'],
-            'address' => ['required', 'string', 'max:1000'],
+            'supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'supplier_name' => ['required_without:supplier_id', 'nullable', 'string', 'max:255'],
+            'phone' => ['required_without:supplier_id', 'nullable', 'string', 'max:50'],
+            'address' => ['required_without:supplier_id', 'nullable', 'string', 'max:1000'],
             'project_id' => ['required', 'exists:projects,id'],
             'date' => ['required', 'date'],
             'items' => ['required', 'array', 'min:1'],
@@ -44,11 +53,15 @@ class ProcurementController extends Controller
         ]);
 
         DB::transaction(function () use ($data): void {
-            $supplier = Supplier::firstOrCreate(
-                ['name' => trim($data['supplier_name'])],
-                ['phone' => $data['phone'], 'address' => $data['address']]
-            );
-            $supplier->update(['phone' => $data['phone'], 'address' => $data['address']]);
+            if (! empty($data['supplier_id'])) {
+                $supplier = Supplier::findOrFail($data['supplier_id']);
+            } else {
+                $supplier = Supplier::firstOrCreate(
+                    ['name' => trim($data['supplier_name'])],
+                    ['phone' => $data['phone'] ?? '', 'address' => $data['address'] ?? '']
+                );
+                $supplier->update(['phone' => $data['phone'] ?? $supplier->phone, 'address' => $data['address'] ?? $supplier->address]);
+            }
             $project = Project::findOrFail($data['project_id']);
             $totalPrice = 0;
             $itemNames = [];

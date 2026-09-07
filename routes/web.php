@@ -24,10 +24,13 @@ Route::middleware('auth')->group(function () {
 	Route::get('/projects/{project}/dashboard', [ProjectWorkspaceController::class, 'dashboard'])->name('projects.dashboard');
 	Route::get('/media/{path}', [PhotoReportController::class, 'file'])->where('path', '.*')->name('media.file');
 	Route::get('/projects/{project}/progress', [ProjectWorkspaceController::class, 'progress'])->name('projects.progress');
+	Route::get('/projects/{project}/progress/source', [ProjectWorkspaceController::class, 'progressSource'])->name('projects.progress.source');
+	Route::post('/projects/{project}/progress/import', [ProjectWorkspaceController::class, 'importProgress'])->name('projects.progress.import');
 	Route::get('/projects/{project}/materials', [ProjectWorkspaceController::class, 'materials'])->name('projects.materials');
 	Route::get('/projects/{project}/cash-flows', [ProjectWorkspaceController::class, 'cashFlows'])->name('projects.cash-flows');
 	Route::get('/projects/{project}/photos', [PhotoReportController::class, 'index'])->name('projects.photos');
 	Route::get('/procurements', [ProcurementController::class, 'index'])->name('procurements.index');
+	Route::get('/procurements/suppliers/{supplier}', [ProcurementController::class, 'show'])->name('procurements.supplier');
 	Route::middleware('manage.projects')->group(function () {
 	Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
 	Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');

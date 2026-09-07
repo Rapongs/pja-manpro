@@ -6,8 +6,10 @@ use App\Models\CashFlow;
 use App\Models\Lapjusik;
 use App\Models\MasterMaterial;
 use App\Models\MaterialFlow;
+use App\Models\ProgressImport;
 use App\Models\Project;
 use App\Models\SCurvePlanned;
+use App\Services\ExcelProgressImporter;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,9 +31,29 @@ class ProjectWorkspaceController extends Controller
 
     public function progress(Project $project): View
     {
+        $import = ProgressImport::where('project_id', $project->id)->latest('imported_at')->first();
         $planned = SCurvePlanned::where('project_id', $project->id)->orderBy('week_start')->get();
         $lapjusik = Lapjusik::where('project_id', $project->id)->orderBy('week_start')->get();
+
         $weeklyActual = $lapjusik->mapWithKeys(fn (Lapjusik $item) => [$item->week_start->toDateString() => $item->progress_pct]);
+
+        $weekDates = $this->weekDates($import?->week_labels ?? [], $project);
+        $weekLabels = $import?->week_labels ?? $planned->map(fn ($p) => $p->week_start->format('d M Y'))->values()->all();
+
+        if ($import) {
+            $weeks = collect($weekDates)->map(fn ($date) => $date->toDateString());
+            $weekDateStrings = array_map(fn ($date) => $date->toDateString(), $weekDates);
+            $plannedByWeek = collect($import->target_values)->mapWithKeys(fn ($v, $i) => [$weekDateStrings[$i] ?? $i => $v]);
+            $actualByWeek = collect($import->actual_values)->mapWithKeys(fn ($v, $i) => [$weekDateStrings[$i] ?? $i => $v]);
+            $chartLabels = $import->week_labels;
+            $chartPlanned = $import->target_values;
+            $chartActual = $import->actual_values;
+            $actual = $import->actual_values;
+            $latestActual = $this->lastNonNull($chartActual);
+
+            return view('projects.progress', compact('project', 'planned', 'lapjusik', 'weeks', 'plannedByWeek', 'actual', 'chartLabels', 'chartPlanned', 'chartActual', 'import', 'weekLabels', 'weekDates', 'latestActual'));
+        }
+
         $latestActualWeek = $weeklyActual->keys()->max();
         $weeks = $planned->pluck('week_start')->map(fn ($week) => $week->toDateString())
             ->merge($weeklyActual->keys())
@@ -43,8 +65,112 @@ class ProjectWorkspaceController extends Controller
         $chartLabels = $weeks->map(fn (string $week) => Carbon::parse($week)->format('d M Y'))->values();
         $chartPlanned = $weeks->map(fn (string $week) => $plannedByWeek->get($week))->values();
         $chartActual = $actual->values();
+        $latestActual = $this->lastNonNull($chartActual->all());
 
-        return view('projects.progress', compact('project', 'planned', 'lapjusik', 'weeks', 'plannedByWeek', 'actual', 'chartLabels', 'chartPlanned', 'chartActual'));
+        return view('projects.progress', compact('project', 'planned', 'lapjusik', 'weeks', 'plannedByWeek', 'actual', 'chartLabels', 'chartPlanned', 'chartActual', 'import', 'weekLabels', 'latestActual'));
+    }
+
+    public function progressSource(Project $project): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $import = ProgressImport::where('project_id', $project->id)->latest('imported_at')->firstOrFail();
+        $path = $import->stored_path ? storage_path('app/private/'.$import->stored_path) : null;
+        abort_unless($path && is_file($path), 404);
+
+        return response()->file($path, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function importProgress(Request $request, Project $project): RedirectResponse
+    {
+        $request->validate([
+            'progress_file' => ['required', 'file', 'mimes:xlsx'],
+        ]);
+
+        $file = $request->file('progress_file');
+        $path = $file->store('progress-imports');
+
+        try {
+            $data = app(ExcelProgressImporter::class)->read(storage_path('app/private/'.$path));
+        } catch (\Throwable $e) {
+            return back()->withErrors(['progress_file' => 'Gagal membaca file Excel: '.$e->getMessage()]);
+        }
+
+        $import = ProgressImport::create([
+            'project_id' => $project->id,
+            'source_filename' => $file->getClientOriginalName(),
+            'stored_path' => $path,
+            'sheet_name' => $data['sheet_name'] ?? null,
+            'week_labels' => $data['week_labels'],
+            'target_values' => $data['target_values'],
+            'actual_values' => $data['actual_values'],
+            'table_rows' => $data['table_rows'],
+            'imported_at' => now(),
+        ]);
+
+        $weekDates = $this->weekDates($data['week_labels'], $project);
+        foreach ($data['target_values'] as $i => $value) {
+            if (isset($weekDates[$i]) && $value !== null) {
+                SCurvePlanned::updateOrCreate(
+                    ['project_id' => $project->id, 'week_start' => $weekDates[$i]],
+                    ['planned_progress_pct' => $value]
+                );
+            }
+        }
+        foreach ($data['actual_values'] as $i => $value) {
+            if (isset($weekDates[$i]) && $value !== null) {
+                Lapjusik::updateOrCreate(
+                    ['project_id' => $project->id, 'week_start' => $weekDates[$i]],
+                    ['progress_pct' => $value]
+                );
+            }
+        }
+
+        return back()->with('success', 'Data progress dari Excel berhasil diimpor.');
+    }
+
+    private function lastNonNull(array $values): ?float
+    {
+        $reversed = array_reverse($values);
+        foreach ($reversed as $v) {
+            if ($v !== null && $v !== '') return (float) $v;
+        }
+        return null;
+    }
+
+    private function weekDates(array $weekLabels, Project $project): array
+    {
+        $dates = [];
+        foreach ($weekLabels as $label) {
+            $date = $this->parseWeekDate($label);
+            if ($date) {
+                $dates[] = $date;
+            } elseif ($project->start_date) {
+                $dates[] = $project->start_date->copy()->startOfWeek(Carbon::MONDAY)->addDays(count($dates) * 7);
+            } else {
+                $dates[] = now()->startOfWeek(Carbon::MONDAY)->addDays(count($dates) * 7);
+            }
+        }
+        return $dates;
+    }
+
+    private function parseWeekDate(string $label): ?Carbon
+    {
+        if (preg_match('/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{2,4})/', $label, $m)) {
+            $day = (int) $m[1];
+            $month = (int) $m[2];
+            $year = strlen($m[3]) === 2 ? 2000 + (int) $m[3] : (int) $m[3];
+            if (checkdate($month, $day, $year)) {
+                return Carbon::create($year, $month, $day)->startOfWeek(Carbon::MONDAY);
+            }
+        }
+        if (str_contains($label, '-') && preg_match('/\((.*?)\)/', $label, $pm)) {
+            foreach (explode('-', $pm[1]) as $part) {
+                $parsed = $this->parseWeekDate($part);
+                if ($parsed) return $parsed;
+            }
+        }
+        return null;
     }
 
     public function storeProgress(Request $request, Project $project): RedirectResponse
