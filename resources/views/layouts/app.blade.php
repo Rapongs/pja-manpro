@@ -32,9 +32,9 @@
                 <!-- <span class="text-lg font-bold tracking-tight">PJ Ambaraloka</span> -->
             </a>
             <div class="flex items-center gap-4 text-sm text-slate-500">
-                @auth
+                @auth @if (! session('guest_mode', false))
                     <a href="{{ route('procurements.index') }}" class="font-semibold text-orange-600 hover:text-orange-700">Pengadaan</a>
-                @endauth
+                @endif @endauth
                 <span>{{ auth()->user()->name ?? 'Tamu' }}</span>
                 @auth
                     <form method="POST" action="{{ route('logout') }}">@csrf<button class="font-semibold text-orange-600 hover:text-orange-700">Keluar</button></form>

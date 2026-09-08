@@ -318,6 +318,7 @@ class ProjectWorkspaceController extends Controller
 
     public function cashFlows(Request $request, Project $project): View
     {
+        abort_if(session('guest_mode', false), 403);
         $month = $this->month($request); $base = CashFlow::where('project_id', $project->id); $monthQuery = (clone $base)->whereBetween('date', [$month.'-01', Carbon::createFromFormat('Y-m', $month)->endOfMonth()->toDateString()]);
         $summaryFlows = $monthQuery->get(); $query = (clone $monthQuery)->when($request->filled('search'), fn ($q) => $q->where('description', 'like', '%'.$request->string('search')->toString().'%'));
         $flows = $query->orderBy('date')->orderBy('id')->paginate(10)->withQueryString(); $monthEnd = $summaryFlows->sortBy(['date', 'id'])->last(); $months = collect([$month])->merge($base->selectRaw("strftime('%Y-%m', date) as month")->groupBy('month')->orderByDesc('month')->pluck('month'))->unique()->sortDesc()->values();

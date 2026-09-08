@@ -26,7 +26,7 @@
 @if ($import)
 <div class="progress-overview mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
     <section class="progress-chart border border-slate-200 bg-white p-5 shadow-sm"><h2 class="mb-4 text-lg font-semibold">Rencana vs aktual mingguan</h2><canvas id="progress-chart" height="150"></canvas></section>
-    <section class="border border-slate-200 bg-white p-5 shadow-sm"><h2 class="mb-4 text-lg font-semibold">Ringkasan import</h2><div class="space-y-2 text-sm text-slate-600"><p><strong>Minggu terdeteksi:</strong> {{ count($weekLabels) }}</p><p><strong>Target akhir:</strong> {{ end($chartPlanned) !== false ? number_format((float) end($chartPlanned), 2, ',', '.') : '-' }}%</p><p><strong>Realisasi akhir:</strong> {{ $latestActual !== null ? number_format($latestActual, 2, ',', '.') . '%' : '-' }}</p></div></section>
+    <section class="border border-slate-200 bg-white p-5 shadow-sm"><h2 class="mb-4 text-lg font-semibold">Ringkasan Kurva S</h2><div class="space-y-2 text-sm text-slate-600"><p><strong>Minggu terdeteksi:</strong> {{ count($weekLabels) }}</p><p><strong>Target akhir:</strong> {{ end($chartPlanned) !== false ? number_format((float) end($chartPlanned), 2, ',', '.') : '-' }}%</p><p><strong>Realisasi akhir:</strong> {{ $latestActual !== null ? number_format($latestActual, 2, ',', '.') . '%' : '-' }}</p></div></section>
 </div>
 
 <section class="mt-8 border border-slate-200 bg-white p-5 shadow-sm">

@@ -41,10 +41,15 @@ class PhotoReportController extends Controller
 
     public function store(Request $request, Project $project): RedirectResponse
     {
+        $photo = $request->file('photo');
+        if ($photo && $photo->getError() === UPLOAD_ERR_INI_SIZE) {
+            return back()->withErrors(['photo' => 'Ukuran file terlalu besar. Maksimal '.ini_get('upload_max_filesize').'.'])->withInput();
+        }
+
         $data = $request->validate([
             'date' => ['required', 'date'],
             'description' => ['required', 'string', 'max:255'],
-            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:25600'],
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
         ]);
         $data['project_id'] = $project->id;
         $data['photo_path'] = $request->file('photo')->store('photo-reports', 'public');
@@ -60,7 +65,7 @@ class PhotoReportController extends Controller
         $data = $request->validate([
             'date' => ['required', 'date'],
             'description' => ['required', 'string', 'max:255'],
-            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:25600'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
         ]);
         if ($request->hasFile('photo')) {
             Storage::disk('public')->delete($photoReport->photo_path);

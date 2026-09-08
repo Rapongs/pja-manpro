@@ -18,6 +18,7 @@ class ProcurementController extends Controller
 {
     public function index(Request $request): View
     {
+        abort_if(session('guest_mode', false), 403);
         $projects = Project::orderBy('name')->get();
         $suppliers = Supplier::withCount('procurements')->orderBy('name')->get();
         $supplier = $request->filled('supplier_id')
@@ -29,10 +30,20 @@ class ProcurementController extends Controller
 
     public function show(Supplier $supplier): View
     {
-        $supplier->load(['procurements.project', 'procurements.items']);
+        abort_if(session('guest_mode', false), 403);
+        $supplier->load(['procurements.project', 'procurements.items.procurement']);
         $projects = Project::orderBy('name')->get();
+        $materials = $supplier->procurements
+            ->flatMap->items
+            ->groupBy(fn ($item) => mb_strtolower(trim((string) $item->material_name)))
+            ->map(function ($items) {
+                $latest = $items->sortByDesc(fn ($item) => $item->procurement->date)->first();
+                return ['name' => $latest->material_name, 'unit' => $latest->unit, 'price' => $latest->price];
+            })
+            ->sortBy(fn ($material) => mb_strtolower($material['name']))
+            ->values();
 
-        return view('procurements.show', compact('supplier', 'projects'));
+        return view('procurements.show', compact('supplier', 'projects', 'materials'));
     }
 
     public function store(Request $request): RedirectResponse

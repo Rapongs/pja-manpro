@@ -17,12 +17,15 @@
 </div>
 <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     @foreach ([['label' => 'Kurva S & Lapjusik', 'route' => 'projects.progress', 'value' => 'Buka progress'], ['label' => 'Laporan Foto', 'route' => 'projects.photos', 'value' => 'Buka gallery'], ['label' => 'Material', 'route' => 'projects.materials', 'value' => 'Buka material'], ['label' => 'Keuangan', 'route' => 'projects.cash-flows', 'value' => 'Buka cash flow']] as $module)
+        @if ($module['route'] === 'projects.cash-flows' && session('guest_mode', false)) @continue @endif
         <a href="{{ route($module['route'], $project) }}" class="border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-400"><p class="text-sm text-slate-500">{{ $module['label'] }}</p><p class="mt-4 text-lg font-semibold text-orange-600">{{ $module['value'] }} &rarr;</p></a>
     @endforeach
 </div>
 <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <div class="border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Progress aktual</p><p class="mt-3 text-2xl font-bold">{{ number_format($actualProgress, 2) }}%</p></div>
+    @if (! session('guest_mode', false))
     <div class="border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Saldo kas</p><p class="mt-3 text-2xl font-bold">Rp {{ number_format($cashBalance, 0, ',', '.') }}</p></div>
+    @endif
     <div class="border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Jenis material</p><p class="mt-3 text-2xl font-bold">{{ $materialCount }}</p></div>
     <div class="border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Laporan foto</p><p class="mt-3 text-2xl font-bold">{{ $photoCount }}</p></div>
 </div>

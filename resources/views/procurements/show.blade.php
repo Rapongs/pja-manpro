@@ -43,6 +43,18 @@ Chat WhatsApp
 </div>
 
 <div class="mt-6 border border-slate-200 bg-white p-5 shadow-sm">
+<h2 class="text-lg font-semibold">Material yang pernah dibeli</h2>
+<p class="mt-1 text-sm text-slate-500">{{ $materials->count() }} jenis material</p>
+@if ($materials->isNotEmpty())
+<div class="mt-4 overflow-x-auto">
+<table class="w-full text-sm"><thead><tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><th class="px-3 py-2">Material</th><th class="px-3 py-2">Harga satuan</th></tr></thead><tbody>@foreach ($materials as $material)<tr class="border-b border-slate-100"><td class="px-3 py-2 font-medium">{{ $material['name'] }}</td><td class="px-3 py-2">Rp {{ number_format((float) $material['price'], 0, ',', '.') }}<span class="text-slate-500">/{{ $material['unit'] }}</span></td></tr>@endforeach</tbody></table>
+</div>
+@else
+<p class="mt-3 text-sm text-slate-500">Belum ada material yang dibeli dari supplier ini.</p>
+@endif
+</div>
+
+<div class="mt-6 border border-slate-200 bg-white p-5 shadow-sm">
 <h2 class="text-lg font-semibold">Template pesan WhatsApp</h2>
 <p class="mt-1 text-sm text-slate-500">Salin teks berikut, atau gunakan tombol Chat WhatsApp di atas untuk membuka WA dengan pesan yang sudah terisi.</p>
 <textarea id="wa-template" readonly class="mt-3 w-full border border-slate-300 bg-slate-50 px-3 py-2 text-sm" rows="8">{{ trim($template) }}</textarea>
