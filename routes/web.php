@@ -26,6 +26,7 @@ Route::middleware('auth')->group(function () {
 	Route::get('/projects/{project}/progress', [ProjectWorkspaceController::class, 'progress'])->name('projects.progress');
 	Route::get('/projects/{project}/progress/source', [ProjectWorkspaceController::class, 'progressSource'])->name('projects.progress.source');
 	Route::post('/projects/{project}/progress/import', [ProjectWorkspaceController::class, 'importProgress'])->name('projects.progress.import');
+	Route::post('/projects/{project}/progress/import/store', [ProjectWorkspaceController::class, 'storeImportProgress'])->name('projects.progress.import.store');
 	Route::get('/projects/{project}/materials', [ProjectWorkspaceController::class, 'materials'])->name('projects.materials');
 	Route::get('/projects/{project}/cash-flows', [ProjectWorkspaceController::class, 'cashFlows'])->name('projects.cash-flows');
 	Route::get('/projects/{project}/photos', [PhotoReportController::class, 'index'])->name('projects.photos');

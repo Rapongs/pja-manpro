@@ -81,7 +81,7 @@ class ProjectWorkspaceController extends Controller
         ]);
     }
 
-    public function importProgress(Request $request, Project $project): RedirectResponse
+    public function importProgress(Request $request, Project $project): View|RedirectResponse
     {
         $request->validate([
             'progress_file' => ['required', 'file', 'mimes:xlsx'],
@@ -91,20 +91,52 @@ class ProjectWorkspaceController extends Controller
         $path = $file->store('progress-imports');
 
         try {
-            $data = app(ExcelProgressImporter::class)->read(storage_path('app/private/'.$path));
+            $sheets = app(ExcelProgressImporter::class)->preview(storage_path('app/private/'.$path));
         } catch (\Throwable $e) {
             return back()->withErrors(['progress_file' => 'Gagal membaca file Excel: '.$e->getMessage()]);
         }
 
+        session(['pending_import_path' => $path, 'pending_import_filename' => $file->getClientOriginalName()]);
+
+        return view('projects.progress-config', compact('project', 'sheets'));
+    }
+
+    public function storeImportProgress(Request $request, Project $project): RedirectResponse
+    {
+        $request->validate([
+            'sheet_name' => ['nullable', 'string', 'max:100'],
+            'start_row' => ['required', 'integer', 'min:1'],
+            'end_row' => ['required', 'integer', 'min:1', 'gte:start_row'],
+            'week_row' => ['required', 'integer', 'min:1'],
+            'week_start_col' => ['required', 'string', 'max:3'],
+            'week_end_col' => ['required', 'string', 'max:3'],
+            'target_row' => ['required', 'integer', 'min:1'],
+            'actual_row' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $path = session('pending_import_path');
+        $filename = session('pending_import_filename');
+        abort_unless($path && is_file(storage_path('app/private/'.$path)), 422, 'Sesi upload kedaluwarsa, silakan unggah ulang.');
+
+        $importer = app(ExcelProgressImporter::class);
+        $config = $importer->configFromForm($request->all());
+
+        try {
+            $data = $importer->read(storage_path('app/private/'.$path), $config);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['config' => 'Gagal membaca file dengan konfigurasi tersebut: '.$e->getMessage()]);
+        }
+
         $import = ProgressImport::create([
             'project_id' => $project->id,
-            'source_filename' => $file->getClientOriginalName(),
+            'source_filename' => $filename ?? $request->file('progress_file')?->getClientOriginalName() ?? 'file.xlsx',
             'stored_path' => $path,
             'sheet_name' => $data['sheet_name'] ?? null,
             'week_labels' => $data['week_labels'],
             'target_values' => $data['target_values'],
             'actual_values' => $data['actual_values'],
             'table_rows' => $data['table_rows'],
+            'cell_config' => $importer->configForForm($config),
             'imported_at' => now(),
         ]);
 
@@ -126,7 +158,9 @@ class ProjectWorkspaceController extends Controller
             }
         }
 
-        return back()->with('success', 'Data progress dari Excel berhasil diimpor.');
+        session()->forget(['pending_import_path', 'pending_import_filename']);
+
+        return to_route('projects.progress', $project)->with('success', 'Data progress dari Excel berhasil diimpor.');
     }
 
     private function lastNonNull(array $values): ?float

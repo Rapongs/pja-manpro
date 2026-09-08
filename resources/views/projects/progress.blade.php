@@ -7,14 +7,18 @@
 @if (! session('guest_mode', false))
 <section class="guest-mutation-section mt-8 border border-slate-200 bg-white p-5 shadow-sm">
 <h2 class="mb-4 text-lg font-semibold">Upload file Excel progress</h2>
-<p class="mb-4 text-sm text-slate-500">Unggah file Excel untuk membaca otomatis target (baris 36) dan realisasi (baris 38) beserta tabel rincian (baris 9–39).</p>
+<p class="mb-4 text-sm text-slate-500">Unggah file Excel. Setelah unggah, Anda dapat memilih sheet dan menentukan posisi sel (baris & kolom) untuk label minggu, target, dan realisasi sesuai format file Anda.</p>
 <form method="POST" action="{{ route('projects.progress.import', $project) }}" enctype="multipart/form-data" class="flex flex-col gap-3 sm:flex-row sm:items-end">
 @csrf
 <input type="file" name="progress_file" accept=".xlsx" required class="w-full border border-slate-300 px-3 py-2 text-sm">
-<button class="w-full bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 sm:w-auto">Upload & impor</button>
+<button class="w-full bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 sm:w-auto">Upload & lanjutkan</button>
 </form>
 @if ($import)
-<p class="mt-3 text-sm text-slate-500">File terakhir: <strong>{{ $import->source_filename }}</strong> · {{ $import->imported_at->format('d M Y H:i') }} · Sheet: {{ $import->sheet_name ?? '-' }}</p>
+<p class="mt-3 text-sm text-slate-500">File terakhir: <strong>{{ $import->source_filename }}</strong> · {{ $import->imported_at->format('d M Y H:i') }} · Sheet: {{ $import->sheet_name ?? '-' }}
+@if ($import->cell_config)
+    · Konfigurasi: baris label {{ $import->cell_config['week_row'] }} (kol {{ $import->cell_config['week_start_col'] }}–{{ $import->cell_config['week_end_col'] }}), target baris {{ $import->cell_config['target_row'] }}, realisasi baris {{ $import->cell_config['actual_row'] }}
+@endif
+</p>
 @endif
 </section>
 @endif
@@ -39,7 +43,11 @@
 #excel-live-view table { border-collapse: collapse; width: max-content; min-width: 100%; }
 #excel-live-view td, #excel-live-view th { border: 1px solid #e2e8f0; padding: 4px 8px; font-size: 12px; white-space: nowrap; }
 #excel-live-view tbody td:first-child, #excel-live-view thead th:first-child { background: #f8fafc; font-weight: 600; }
-#excel-live-view th { background: #f1f5f9; font-weight: 600; text-align: left; }
+#excel-live-view tbody td.lv-rownum, #excel-live-view thead th.lv-corner { position: sticky; left: 0; text-align: center; background: #f1f5f9; z-index: 2; }
+#excel-live-view th { background: #f1f5f9; font-weight: 600; text-align: center; }
+#excel-live-view td.lv-week-row { background: #ffedd5; font-weight: 700; }
+#excel-live-view td.lv-target-row { background: #fecaca; font-weight: 700; }
+#excel-live-view td.lv-actual-row { background: #bbf7d0; font-weight: 700; }
 </style>
 </section>
 @else
@@ -64,7 +72,14 @@
     const container = document.getElementById('excel-live-view');
     const tabs = document.getElementById('excel-sheet-tabs');
     const defaultSheet = @json($import->sheet_name ?? '');
+    const cfg = @json($import->cell_config ?? null);
     if (!container) return;
+
+    function colNumber(letter) {
+        let n = 0;
+        String(letter || '').toUpperCase().replace(/[^A-Z]/g, '').split('').forEach(function (c) { n = n * 26 + c.charCodeAt(0) - 64; });
+        return n;
+    }
 
     function loadSheetJS() {
         return new Promise(function (resolve, reject) {
@@ -77,23 +92,93 @@
         });
     }
 
-    function showSheet(wb, name) {
-        const ws = wb.Sheets[name];
-        if (!ws) return;
-        const html = XLSX.utils.sheet_to_html(ws, { id: 'excel-sheet-table' });
-        container.innerHTML = html;
-        const table = container.querySelector('table');
-        if (!table) return;
+    function escHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
 
-        if (ws['!cols'] && ws['!cols'].length) {
-            const colgroup = document.createElement('colgroup');
-            ws['!cols'].forEach(function (col) {
-                const el = document.createElement('col');
-                el.style.width = Math.max(col.wpx || 80, 40) + 'px';
-                colgroup.appendChild(el);
-            });
-            table.insertBefore(colgroup, table.firstChild);
+    function colLetter(n) {
+        let s = '';
+        while (n > 0) { s = String.fromCharCode(65 + ((n - 1) % 26)) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+    }
+
+    function cellText(ws, r, c) {
+        const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+        if (!cell) return '';
+        if (cell.w !== undefined && cell.w !== null) return String(cell.w);
+        if (cell.v === undefined || cell.v === null) return '';
+        return String(cell.v);
+    }
+
+    function buildSheetHtml(wb, name) {
+        const ws = wb.Sheets[name];
+        if (!ws) return '';
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+
+        let startRow = range.s.r;
+        let endRow = range.e.r;
+        if (cfg) {
+            const sr = parseInt(cfg.start_row, 10) || 0;
+            const er = parseInt(cfg.end_row, 10) || 0;
+            if (sr > range.s.r) startRow = Math.min(sr - 1, range.e.r);
+            if (er > 0) endRow = Math.min(er - 1, range.e.r);
+            if (endRow < startRow) endRow = startRow;
         }
+
+        const merges = {};
+        (ws['!merges'] || []).forEach(function (m) {
+            for (let rr = m.s.r; rr <= m.e.r; rr++) {
+                for (let cc = m.s.c; cc <= m.e.c; cc++) {
+                    merges[rr + ':' + cc] = { r: m.s.r, c: m.s.c, rowspan: m.e.r - m.s.r + 1, colspan: m.e.c - m.s.c + 1 };
+                }
+            }
+        });
+
+        let html = '<table>';
+        if (ws['!cols']) html += '<colgroup>';
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            const col = ws['!cols'] ? ws['!cols'][c] : null;
+            const w = col && col.wpx ? Math.max(col.wpx, 40) : 80;
+            html += '<col style="width:' + w + 'px">';
+        }
+        if (ws['!cols']) html += '</colgroup>';
+
+        html += '<thead><tr><th class="lv-corner"></th>';
+        for (let c = range.s.c; c <= range.e.c; c++) html += '<th>'+colLetter(c+1)+'</th>';
+        html += '</tr></thead><tbody>';
+
+        for (let r = startRow; r <= endRow; r++) {
+            html += '<tr><td class="lv-rownum">' + (r + 1) + '</td>';
+            for (let c = range.s.c; c <= range.e.c; c++) {
+                const m = merges[r + ':' + c];
+                if (m && (m.r !== r || m.c !== c)) continue;
+                const text = cellText(ws, r, c);
+                let cls = 'lv-cell';
+                if (cfg) {
+                    const weekRow = parseInt(cfg.week_row, 10);
+                    const targetRow = parseInt(cfg.target_row, 10);
+                    const actualRow = parseInt(cfg.actual_row, 10);
+                    const weekStart = cfg.week_start_col ? colNumber(cfg.week_start_col) : 0;
+                    const weekEnd = cfg.week_end_col ? colNumber(cfg.week_end_col) : 0;
+                    if (weekRow === r + 1 && c + 1 >= weekStart && c + 1 <= weekEnd) cls += ' lv-week-row';
+                    else if (targetRow === r + 1) cls += ' lv-target-row';
+                    else if (actualRow === r + 1) cls += ' lv-actual-row';
+                }
+                const span = m && m.r === r && m.c === c
+                    ? ' colspan="' + m.colspan + '" rowspan="' + m.rowspan + '"'
+                    : '';
+                html += '<td class="' + cls + '"' + span + ' data-r="' + (r + 1) + '" data-c="' + (c + 1) + '" title="' + escHtml(text) + '">' + escHtml(text) + '</td>';
+            }
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function showSheet(wb, name) {
+        const html = buildSheetHtml(wb, name);
+        if (!html) return;
+        container.innerHTML = html;
 
         Array.from(tabs.children).forEach(function (btn) {
             btn.classList.toggle('border-orange-600', btn.dataset.sheet === name);

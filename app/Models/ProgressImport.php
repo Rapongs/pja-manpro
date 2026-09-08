@@ -16,6 +16,7 @@ class ProgressImport extends Model
             'target_values' => 'array',
             'actual_values' => 'array',
             'table_rows' => 'array',
+            'cell_config' => 'array',
             'imported_at' => 'datetime',
         ];
     }
