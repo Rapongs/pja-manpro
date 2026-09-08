@@ -55,6 +55,7 @@ class ProcurementController extends Controller
             'address' => ['required_without:supplier_id', 'nullable', 'string', 'max:1000'],
             'project_id' => ['required', 'exists:projects,id'],
             'date' => ['required', 'date'],
+            'receiver_pic' => ['required', 'string', 'max:100'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.material_name' => ['required', 'string', 'max:255'],
             'items.*.brand' => ['nullable', 'string', 'max:100'],
@@ -76,7 +77,7 @@ class ProcurementController extends Controller
             $project = Project::findOrFail($data['project_id']);
             $totalPrice = 0;
             $itemNames = [];
-            $procurement = Procurement::create(['supplier_id' => $supplier->id, 'project_id' => $project->id, 'date' => $data['date'], 'total_price' => 0]);
+            $procurement = Procurement::create(['supplier_id' => $supplier->id, 'project_id' => $project->id, 'date' => $data['date'], 'receiver_pic' => $data['receiver_pic'] ?? null, 'total_price' => 0]);
 
             foreach ($data['items'] as $itemData) {
                 $materialName = trim($itemData['material_name']);

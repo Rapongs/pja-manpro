@@ -68,7 +68,7 @@ class WorkspaceTest extends TestCase
 
         $payload = [
             'supplier_name' => 'PT Material Jaya', 'phone' => '08123456789', 'address' => 'Jakarta',
-            'project_id' => $project->id, 'date' => '2026-09-05',
+            'project_id' => $project->id, 'date' => '2026-09-05', 'receiver_pic' => 'Ali Prakoso',
             'items' => [['material_name' => 'Semen', 'brand' => 'Tiga Roda', 'unit' => 'zak', 'quantity' => 10, 'price' => 75000]],
         ];
         $this->actingAs($user)->post(route('procurements.store'), $payload)->assertRedirect();
