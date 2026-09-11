@@ -55,6 +55,48 @@ class PhotoReportTest extends TestCase
             ->assertSee('/media/photo-reports/foto-a.png');
     }
 
+    public function test_uploaded_photo_is_downscaled_before_storage(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $project = Project::create(['name' => 'Proyek Foto', 'status' => 'active']);
+
+        $response = $this->actingAs($user)->post(route('projects.photos.store', $project), [
+            'date' => '2026-08-24',
+            'description' => 'Foto besar',
+            'photo' => UploadedFile::fake()->image('besar.jpg', 2500, 2000),
+        ]);
+
+        $response->assertRedirect();
+        $report = PhotoReport::first();
+        $this->assertStringEndsWith('.jpg', $report->photo_path);
+        $size = getimagesize(Storage::disk('public')->path($report->photo_path));
+        $this->assertNotFalse($size);
+        $this->assertLessThanOrEqual(1920, $size[0]);
+        $this->assertLessThanOrEqual(1920, $size[1]);
+        $this->assertSame('image/jpeg', $size['mime']);
+    }
+
+    public function test_uploaded_png_keeps_png_format(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $project = Project::create(['name' => 'Proyek Foto', 'status' => 'active']);
+
+        $response = $this->actingAs($user)->post(route('projects.photos.store', $project), [
+            'date' => '2026-08-24',
+            'description' => 'Foto png',
+            'photo' => UploadedFile::fake()->image('gambar.png', 800, 600),
+        ]);
+
+        $response->assertRedirect();
+        $report = PhotoReport::first();
+        $this->assertStringEndsWith('.png', $report->photo_path);
+        $size = getimagesize(Storage::disk('public')->path($report->photo_path));
+        $this->assertNotFalse($size);
+        $this->assertSame('image/png', $size['mime']);
+    }
+
     public function test_storage_url_returns_image_content_instead_of_html(): void
     {
         Storage::fake('public');

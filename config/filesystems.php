@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Managed Storage Disks
+    |--------------------------------------------------------------------------
+    |
+    | Disk yang dipakai aplikasi untuk foto laporan (photos_disk) dan file
+    | impor Excel (imports_disk). Lokal: "public"/"local". Deploy: "s3".
+    |
+    */
+
+    'photos_disk' => env('PHOTOS_DISK', 'public'),
+
+    'imports_disk' => env('IMPORTS_DISK', 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

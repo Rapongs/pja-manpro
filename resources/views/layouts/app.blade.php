@@ -28,7 +28,7 @@
     <header class="border-b border-slate-200 bg-white">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <a href="{{ route('projects.index') }}" class="flex items-center gap-3" aria-label="PJ Ambaraloka">
-                <img src="{{ asset('storage/logo-pt.jpeg') }}" alt="PJ Ambaraloka" class="h-10 w-auto object-contain">
+                <img src="{{ config('app.logo_url') ?: asset('storage/logo-pt.jpeg') }}" alt="PJ Ambaraloka" class="h-10 w-auto object-contain">
                 <!-- <span class="text-lg font-bold tracking-tight">PJ Ambaraloka</span> -->
             </a>
             <div class="flex items-center gap-4 text-sm text-slate-500">

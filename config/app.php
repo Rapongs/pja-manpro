@@ -17,6 +17,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Branding Logo URL
+    |--------------------------------------------------------------------------
+    |
+    | URL logo yang ditampilkan di layout & login. Kosongkan untuk memakai
+    | asset lokal "storage/logo-pt.jpeg". Di deploy (S3), isi dengan URL
+    | publik logo, mis. URL CloudFront/S3.
+    |
+    */
+
+    'logo_url' => env('LOGO_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Optimasi Gambar Upload
+    |--------------------------------------------------------------------------
+    |
+    | Foto laporan dikecilkan sebelum disimpan: sisi terpanjang maksimal
+    | IMAGE_MAX_DIMENSION px, quality JPEG/WebP = IMAGE_QUALITY, PNG selalu
+    | compression level 9. File yang disimpan = file yang ditampilkan.
+    |
+    */
+
+    'image_max_dimension' => env('IMAGE_MAX_DIMENSION', 1920),
+
+    'image_quality' => env('IMAGE_QUALITY', 82),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

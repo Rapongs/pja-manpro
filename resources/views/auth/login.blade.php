@@ -11,7 +11,7 @@
 </head>
 <body class="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900" style="font-family: 'Roboto', sans-serif;">
     <main class="w-full max-w-md border border-slate-200 bg-white p-8 shadow-sm">
-        <img src="{{ asset('storage/logo-pt.jpeg') }}" alt="PJ Ambaraloka" class="mx-auto h-20 w-auto object-contain">
+        <img src="{{ config('app.logo_url') ?: asset('storage/logo-pt.jpeg') }}" alt="PJ Ambaraloka" class="mx-auto h-20 w-auto object-contain">
         <h1 class="mt-3 text-3xl font-bold tracking-tight">Masuk ke workspace</h1>
         @if ($errors->any())
             <div class="mt-6 border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>

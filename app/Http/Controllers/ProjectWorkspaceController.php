@@ -14,7 +14,9 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class ProjectWorkspaceController extends Controller
 {
@@ -70,13 +72,66 @@ class ProjectWorkspaceController extends Controller
         return view('projects.progress', compact('project', 'planned', 'lapjusik', 'weeks', 'plannedByWeek', 'actual', 'chartLabels', 'chartPlanned', 'chartActual', 'import', 'weekLabels', 'latestActual'));
     }
 
-    public function progressSource(Project $project): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    /**
+     * Nama disk untuk file impor Excel. Lokal: "local". Deploy (S3): "s3".
+     */
+    private function importsDisk(): string
+    {
+        return (string) config('filesystems.imports_disk', 'local');
+    }
+
+    /**
+     * Kembalikan [$localPath, $tempPath] agar PharData bisa membaca file.
+     * Untuk disk remote (mis. S3), file diunduh ke temp dan $tempPath wajib di-unlink oleh pemanggil.
+     */
+    private function importLocalPath(string $path, ?string $diskName = null): array
+    {
+        $disk = Storage::disk($diskName ?: $this->importsDisk());
+        abort_unless($disk->exists($path), 422, 'Sesi upload kedaluwarsa, silakan unggah ulang.');
+
+        try {
+            $local = $disk->path($path);
+            if (is_file($local)) {
+                return [$local, null];
+            }
+        } catch (\LogicException $exception) {
+            // Disk remote tidak punya path lokal: unduh ke temp di bawah.
+        }
+
+        $temp = tempnam(sys_get_temp_dir(), 'progress-import-');
+        if ($temp === false) {
+            abort(500, 'Gagal menyiapkan file sementara untuk impor.');
+        }
+        if (! str_ends_with($temp, '.xlsx')) {
+            $renamed = $temp.'.xlsx';
+            rename($temp, $renamed);
+            $temp = $renamed;
+        }
+        file_put_contents($temp, $disk->get($path));
+
+        return [$temp, $temp];
+    }
+
+    public function progressSource(Project $project): Response
     {
         $import = ProgressImport::where('project_id', $project->id)->latest('imported_at')->firstOrFail();
-        $path = $import->stored_path ? storage_path('app/private/'.$import->stored_path) : null;
-        abort_unless($path && is_file($path), 404);
+        $path = $import->stored_path;
+        abort_unless($path, 404);
+        $disk = Storage::disk($this->importsDisk());
+        abort_unless($disk->exists($path), 404);
 
-        return response()->file($path, [
+        try {
+            $local = $disk->path($path);
+            if (is_file($local)) {
+                return response()->file($local, [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ]);
+            }
+        } catch (\LogicException $exception) {
+            // Disk remote (mis. S3): streaming di bawah.
+        }
+
+        return $disk->download($path, $import->source_filename ?: 'progress.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
@@ -88,15 +143,27 @@ class ProjectWorkspaceController extends Controller
         ]);
 
         $file = $request->file('progress_file');
-        $path = $file->store('progress-imports');
+        $diskName = $this->importsDisk();
+        $path = $file->store('progress-imports', $diskName);
 
         try {
-            $sheets = app(ExcelProgressImporter::class)->preview(storage_path('app/private/'.$path));
+            [$localPath, $tempPath] = $this->importLocalPath($path, $diskName);
+            try {
+                $sheets = app(ExcelProgressImporter::class)->preview($localPath);
+            } finally {
+                if ($tempPath !== null) {
+                    @unlink($tempPath);
+                }
+            }
         } catch (\Throwable $e) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                throw $e;
+            }
+
             return back()->withErrors(['progress_file' => 'Gagal membaca file Excel: '.$e->getMessage()]);
         }
 
-        session(['pending_import_path' => $path, 'pending_import_filename' => $file->getClientOriginalName()]);
+        session(['pending_import_path' => $path, 'pending_import_disk' => $diskName, 'pending_import_filename' => $file->getClientOriginalName()]);
 
         return view('projects.progress-config', compact('project', 'sheets'));
     }
@@ -114,16 +181,28 @@ class ProjectWorkspaceController extends Controller
             'actual_row' => ['required', 'integer', 'min:1'],
         ]);
 
+        $diskName = (string) (session('pending_import_disk') ?: $this->importsDisk());
         $path = session('pending_import_path');
         $filename = session('pending_import_filename');
-        abort_unless($path && is_file(storage_path('app/private/'.$path)), 422, 'Sesi upload kedaluwarsa, silakan unggah ulang.');
+        abort_unless($path && Storage::disk($diskName)->exists($path), 422, 'Sesi upload kedaluwarsa, silakan unggah ulang.');
 
         $importer = app(ExcelProgressImporter::class);
         $config = $importer->configFromForm($request->all());
 
         try {
-            $data = $importer->read(storage_path('app/private/'.$path), $config);
+            [$localPath, $tempPath] = $this->importLocalPath($path, $diskName);
+            try {
+                $data = $importer->read($localPath, $config);
+            } finally {
+                if ($tempPath !== null) {
+                    @unlink($tempPath);
+                }
+            }
         } catch (\Throwable $e) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                throw $e;
+            }
+
             return back()->withErrors(['config' => 'Gagal membaca file dengan konfigurasi tersebut: '.$e->getMessage()]);
         }
 
@@ -158,7 +237,7 @@ class ProjectWorkspaceController extends Controller
             }
         }
 
-        session()->forget(['pending_import_path', 'pending_import_filename']);
+        session()->forget(['pending_import_path', 'pending_import_disk', 'pending_import_filename']);
 
         return to_route('projects.progress', $project)->with('success', 'Data progress dari Excel berhasil diimpor.');
     }
